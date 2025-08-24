@@ -1,0 +1,285 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dr Khan Opticals - Cart Summary</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+    header, footer { background-color: #333; color: white; text-align: center; padding: 10px 0; }
+    nav { margin: 10px 0; }
+    nav a { color: white; margin: 0 15px; text-decoration: none; }
+    .cart { padding: 20px; max-width: 800px; margin: 0 auto; }
+    .cart-item { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; position: relative; }
+    .cart-total { font-weight: bold; margin-top: 20px; }
+    button { background-color: #4CAF50; color: white; padding: 2px 5px; border: none; cursor: pointer; margin-right: 5px; }
+    button:hover { background-color: #45a049; }
+    .remove-btn { background-color: #f44336; padding: 2px 5px; font-size: 12px; }
+    .reset-cart { background-color: #f44336; margin-top: 10px; }
+    .action-buttons { position: absolute; right: 10px; top: 5px; }
+    .action-buttons button { display: block; margin-bottom: 5px; }
+    .price-display {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 16px;
+    }
+    .original-price {
+      text-decoration: line-through;
+      color: #666;
+    }
+    .discounted-price {
+      font-weight: bold;
+      color: #000;
+    }
+    .discount {
+      background-color: #ff6347;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .quantity-input {
+      width: 60px;
+      padding: 2px;
+      margin-right: 5px;
+    }
+    .cart-message { color: green; margin-top: 5px; display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Dr Khan Opticals</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="shop.html">Shop</a>
+      <a href="services.html">Services</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </nav>
+  </header>
+
+  <section class="cart">
+    <h2>Your Cart</h2>
+    <div id="cart-items">
+      <!-- Cart items will be populated by JavaScript -->
+    </div>
+    <div class="cart-total" id="cart-total">Total: ₹0</div>
+    <button id="proceed-payment" onclick="proceedToPayment()">Proceed to Payment</button>
+    <a href="index.html"><button>Continue Shopping</button></a>
+    <button class="reset-cart" onclick="resetCart()">Reset Cart</button>
+  </section>
+
+  <footer>
+    <p>© 2025 Dr Khan Opticals. All rights reserved.</p>
+    <a href="https://wa.me/7500503534">WhatsApp Us</a> | <a href="index.html#shop">Shop Now</a>
+  </footer>
+  <script>
+    let cart = JSON.parse(localStorage.getItem('cart')) || [];
+
+    const products = [
+      { id: 1, name: "Prescription Glasses", category: "Prescription Glasses", price: 833, discountedPrice: 250, image: "https://i.ibb.co/Z1J2ND5K/IMG-20250725-WA0053.jpg", description: "Ray-Ban prescription glasses with anti-glare lenses.", specs: "Lens Type: Anti-glare, Frame: Metal, Brand: Ray-Ban" },
+      { id: 2, name: "Prescription Glasses", category: "Sunglasses", price: 1125, discountedPrice: 450, image: "https://i.ibb.co/zhgt4vTN/IMG-20250725-WA0051.jpg", description: "Titan UV-protected polarized sunglasses.", specs: "Lens Type: Polarized, UV Protection: Yes, Frame: Plastic" },
+      { id: 3, name: "Prescription Glasses", category: "Contact Lenses", price: 750, discountedPrice: 300, image: "https://i.ibb.co/HfJ8d3bC/IMG-20250725-WA0028.jpg", description: "Bausch & Lomb daily disposable lenses.", specs: "Duration: Daily, Water Content: 58%" },
+      { id: 4, name: "Prescription Glasses", category: "Prescription Glasses", price: 1600, discountedPrice: 800, image: "https://i.ibb.co/HTwckLkL/IMG-20250725-WA0023.jpg", description: "John Jacobs round frames with blue-light blocking.", specs: "Lens Type: Blue-light blocking, Frame: Acetate, Brand: John Jacobs" },
+      { id: 5, name: "Prescription Glasses", category: "Sunglasses", price: 750, discountedPrice: 300, image: "https://i.ibb.co/Q7r3g20X/IMG-20250725-WA0036.jpg", description: "Oakley polarized designer sunglasses.", specs: "Lens Type: Polarized, UV Protection: Yes, Frame: Metal" },
+      { id: 6, name: "Prescription Glasses", category: "Sunglasses", price: 750, discountedPrice: 300, image: "https://i.ibb.co/MDBHkxdL/IMG-20250725-WA0031.jpg", description: "Additional stylish sunglasses option.", specs: "Lens Type: Standard, UV Protection: Yes, Frame: Plastic" },
+      { id: 7, name: "Prescription Glasses", category: "Prescription Glasses", price: 1300, discountedPrice: 650, image: "https://i.ibb.co/0pPBr9n7/IMG-20250725-WA0045.jpg", description: "Modern prescription glasses with UV protection.", specs: "Lens Type: UV-protected, Frame: Metal, Brand: Generic" },
+      { id: 8, name: "Prescription Glasses", category: "Sunglasses", price: 1250, discountedPrice: 500, image: "https://i.ibb.co/qL6KMqhT/IMG-20250725-WA0017.jpg", description: "Durable sports sunglasses with polarized lenses.", specs: "Lens Type: Polarized, UV Protection: Yes, Frame: Rubberized" },
+      { id: 9, name: "Prescription Glasses", category: "Contact Lenses", price: 1000, discountedPrice: 400, image: "https://i.ibb.co/DP3NP6zC/IMG-20250725-WA0027.jpg", description: "Premium monthly disposable contact lenses.", specs: "Duration: Monthly, Water Content: 55%" },
+      { id: 10, name: "Prescription Glasses", category: "Prescription Glasses", price: 1125, discountedPrice: 450, image: "https://i.ibb.co/zhPmpG4B/IMG-20250728-WA0015.jpg", description: "Prescription glasses with modern design.", specs: "Lens Type: Standard, Frame: Metal" },
+      { id: 11, name: "Sunglasses", category: "Sunglasses", price: 625, discountedPrice: 250, image: "https://i.ibb.co/1JzZQfCf/IMG-20250728-WA0017.jpg", description: "Affordable UV-protected sunglasses.", specs: "Lens Type: UV-protected, Frame: Plastic" },
+      { id: 12, name: "Sunglasses", category: "Contact Lenses", price: 667, discountedPrice: 200, image: "https://i.ibb.co/3mKg98Pg/IMG-20250728-WA0018.jpg", description: "Daily disposable contact lenses.", specs: "Duration: Daily, Water Content: 55%" },
+      { id: 13, name: "Sunglasses", category: "Sunglasses", price: 667, discountedPrice: 200, image: "https://i.ibb.co/twGSb10L/IMG-20250728-WA0019.jpg", description: "Basic sunglasses with UV protection.", specs: "Lens Type: UV-protected, Frame: Plastic" },
+      { id: 14, name: "Sunglasses", category: "Prescription Glasses", price: 1000, discountedPrice: 400, image: "https://i.ibb.co/HTwy4d30/IMG-20250728-WA0020.jpg", description: "Stylish prescription glasses.", specs: "Lens Type: Anti-glare, Frame: Metal" },
+      { id: 15, name: "Prescription Glasses", category: "Contact Lenses", price: 500, discountedPrice: 150, image: "https://i.ibb.co/VcyCFNMK/IMG-20250728-WA0022.jpg", description: "Budget-friendly contact lenses.", specs: "Duration: Daily, Water Content: 50%" },
+      { id: 16, name: "Sunglasses", category: "Sunglasses", price: 1125, discountedPrice: 450, image: "https://i.ibb.co/9mTRh8jq/IMG-20250728-WA0027.jpg", description: "Premium polarized sunglasses.", specs: "Lens Type: Polarized, Frame: Metal" },
+      { id: 17, name: "Prescription Glasses", category: "Prescription Glasses", price: 1125, discountedPrice: 450, image: "https://i.ibb.co/XZZyXPSJ/IMG-20250728-WA0032.jpg", description: "Elegant prescription glasses.", specs: "Lens Type: Blue-light blocking, Frame: Acetate" },
+      { id: 18, name: "Prescription Glasses", category: "Sunglasses", price: 1300, discountedPrice: 650, image: "https://i.ibb.co/W4YpZZjG/IMG-20250728-WA0034.jpg", description: "Designer sunglasses with UV protection.", specs: "Lens Type: UV-protected, Frame: Metal" },
+      { id: 19, name: "Prescription Glasses", category: "Contact Lenses", price: 1000, discountedPrice: 500, image: "https://i.ibb.co/bRzDJ1dR/IMG-20250728-WA0041.jpg", description: "High-quality monthly lenses.", specs: "Duration: Monthly, Water Content: 58%" },
+      { id: 20, name: "Prescription Glasses", category: "Prescription Glasses", price: 1200, discountedPrice: 600, image: "https://i.ibb.co/3yW2sw3Q/IMG-20250728-WA0043.jpg", description: "Luxury prescription glasses.", specs: "Lens Type: Anti-glare, Frame: Metal" },
+      { id: 21, name: "Sunglasses", category: "Sunglasses", price: 875, discountedPrice: 350, image: "https://i.ibb.co/pvzMH6zn/IMG-20250728-WA0044.jpg", description: "Stylish UV-protected sunglasses.", specs: "Lens Type: UV-protected, Frame: Plastic" },
+      { id: 22, name: "Sunglasses", category: "Contact Lenses", price: 875, discountedPrice: 350, image: "https://i.ibb.co/SD2bvnc5/IMG-20250728-WA0046.jpg", description: "Comfortable daily lenses.", specs: "Duration: Daily, Water Content: 55%" },
+      { id: 23, name: "Sunglasses", category: "Sunglasses", price: 1100, discountedPrice: 550, image: "https://i.ibb.co/TqqS0Grk/IMG-20250728-WA0047.jpg", description: "Durable polarized sunglasses.", specs: "Lens Type: Polarized, Frame: Metal" },
+      { id: 24, name: "Sunglasses", category: "Prescription Glasses", price: 500, discountedPrice: 200, image: "https://i.ibb.co/ymBszFJs/IMG-20250728-WA0048.jpg", description: "Affordable prescription glasses.", specs: "Lens Type: Standard, Frame: Plastic" },
+      { id: 25, name: "Sunglasses", category: "Contact Lenses", price: 500, discountedPrice: 200, image: "https://i.ibb.co/PsjxQPGS/IMG-20250728-WA0049.jpg", description: "Basic daily contact lenses.", specs: "Duration: Daily, Water Content: 50%" },
+      { id: 26, name: "Sunglasses", category: "Sunglasses", price: 1417, discountedPrice: 850, image: "https://i.ibb.co/qLyJ8T3w/IMG-20250728-WA0051.jpg", description: "Luxury designer sunglasses.", specs: "Lens Type: Polarized, Frame: Metal" },
+      { id: 27, name: "Sunglasses", category: "Prescription Glasses", price: 1600, discountedPrice: 800, image: "https://i.ibb.co/5xR16PKP/IMG-20250728-WA0052.jpg", description: "Premium prescription glasses.", specs: "Lens Type: Blue-light blocking, Frame: Acetate" },
+      { id: 28, name: "Sunglasses", category: "Sunglasses", price: 1000, discountedPrice: 500, image: "https://i.ibb.co/n8RQcVGL/IMG-20250728-WA0055.jpg", description: "Sporty UV-protected sunglasses.", specs: "Lens Type: UV-protected, Frame: Rubberized" },
+      { id: 29, name: "Sunglasses", category: "Contact Lenses", price: 1000, discountedPrice: 500, image: "https://i.ibb.co/gLzfGGYR/IMG-20250728-WA0057.jpg", description: "Advanced monthly lenses.", specs: "Duration: Monthly, Water Content: 58%" },
+      { id: 30, name: "Sunglasses", category: "Prescription Glasses", price: 750, discountedPrice: 300, image: "https://i.ibb.co/23NDYNQd/IMG-20250728-WA0062.jpg", description: "Modern prescription glasses.", specs: "Lens Type: Anti-glare, Frame: Metal" },
+      { id: 31, name: "Sunglasses", category: "Sunglasses", price: 875, discountedPrice: 350, image: "https://i.ibb.co/VYXLPCwh/IMG-20250728-WA0064.jpg", description: "Trendy UV-protected sunglasses.", specs: "Lens Type: UV-protected, Frame: Plastic" },
+      { id: 32, name: "Sunglasses", category: "Contact Lenses", price: 750, discountedPrice: 300, image: "https://i.ibb.co/qLgSbrXT/IMG-20250728-WA0067.jpg", description: "Daily disposable lenses.", specs: "Duration: Daily, Water Content: 55%" },
+      { id: 33, name: "Sunglasses", category: "Sunglasses", price: 625, discountedPrice: 250, image: "https://i.ibb.co/GQsmyYhP/IMG-20250728-WA0069.jpg", description: "Affordable sunglasses.", specs: "Lens Type: Standard, Frame: Plastic" },
+      { id: 34, name: "Sunglasses", category: "Prescription Glasses", price: 625, discountedPrice: 250, image: "https://i.ibb.co/9k5r57yC/IMG-20250728-WA0074.jpg", description: "Basic prescription glasses.", specs: "Lens Type: Standard, Frame: Metal" },
+      { id: 35, name: "Sunglasses", category: "Contact Lenses", price: 875, discountedPrice: 350, image: "https://i.ibb.co/pjNkkMdk/IMG-20250728-WA0075.jpg", description: "Comfortable monthly lenses.", specs: "Duration: Monthly, Water Content: 55%" },
+      { id: 36, name: "Sunglasses", category: "Sunglasses", price: 625, discountedPrice: 250, image: "https://i.ibb.co/BpB113F/IMG-20250728-WA0076.jpg", description: "Lightweight sunglasses.", specs: "Lens Type: UV-protected, Frame: Plastic" },
+      { id: 37, name: "Sunglasses", category: "Prescription Glasses", price: 1125, discountedPrice: 450, image: "https://i.ibb.co/4nZ5S2FY/IMG-20250728-WA0083.jpg", description: "Stylish prescription glasses.", specs: "Lens Type: Anti-glare, Frame: Acetate" },
+      { id: 38, name: "Sunglasses", category: "Contact Lenses", price: 833, discountedPrice: 250, image: "https://i.ibb.co/9m08hFdw/IMG-20250728-WA0086.jpg", description: "Daily contact lenses.", specs: "Duration: Daily, Water Content: 50%" },
+      { id: 39, name: "Sunglasses", category: "Sunglasses", price: 750, discountedPrice: 300, image: "https://i.ibb.co/tMWWNsQb/IMG-20250728-WA0088.jpg", description: "Polarized sunglasses.", specs: "Lens Type: Polarized, Frame: Metal" },
+      { id: 40, name: "Sunglasses", category: "Prescription Glasses", price: 875, discountedPrice: 350, image: "https://i.ibb.co/CK55yGBZ/IMG-20250728-WA0090.jpg", description: "Elegant prescription glasses.", specs: "Lens Type: Blue-light blocking, Frame: Metal" },
+      { id: 41, name: "Sunglasses", category: "Sunglasses", price: 1125, discountedPrice: 450, image: "https://i.ibb.co/j91QT0Gx/IMG-20250728-WA0093.jpg", description: "Designer UV-protected sunglasses.", specs: "Lens Type: UV-protected, Frame: Metal" },
+      { id: 42, name: "Sunglasses", category: "Contact Lenses", price: 667, discountedPrice: 200, image: "https://i.ibb.co/qYfNQqZW/IMG-20250728-WA0095.jpg", description: "Budget daily lenses.", specs: "Duration: Daily, Water Content: 50%" },
+      { id: 43, name: "Sunglasses", category: "Prescription Glasses", price: 1000, discountedPrice: 400, image: "https://i.ibb.co/6RPNDwnN/IMG-20250728-WA0097.jpg", description: "Premium prescription glasses.", specs: "Lens Type: Anti-glare, Frame: Acetate" },
+      { id: 44, name: "Sunglasses", category: "Sunglasses", price: 875, discountedPrice: 350, image: "https://i.ibb.co/R4YSXDZD/IMG-20250728-WA0099.jpg", description: "Stylish sunglasses.", specs: "Lens Type: UV-protected, Frame: Plastic" },
+      { id: 45, name: "Sunglasses", category: "Contact Lenses", price: 625, discountedPrice: 250, image: "https://i.ibb.co/rGpJKLvR/IMG-20250728-WA0101.jpg", description: "Comfortable daily lenses.", specs: "Duration: Daily, Water Content: 55%" },
+      { id: 46, name: "Sunglasses", category: "Sunglasses", price: 1500, discountedPrice: 900, image: "https://i.ibb.co/MyNJd5F4/IMG-20250731-WA0112.jpg", description: "Stylish aviator sunglasses with UV protection.", specs: "Lens Type: UV-protected, Frame: Metal" },
+      { id: 47, name: "Sunglasses", category: "Prescription Glasses", price: 1500, discountedPrice: 900, image: "https://i.ibb.co/ZpcVjFNr/IMG-20250731-WA0038.jpg", description: "Elegant prescription glasses with anti-glare coating.", specs: "Lens Type: Anti-glare, Frame: Acetate" },
+      { id: 48, name: "Sunglasses", category: "Sunglasses", price: 1500, discountedPrice: 900, image: "https://i.ibb.co/svyR2ph7/IMG-20250731-WA0035.jpg", description: "Durable polarized sunglasses for active lifestyles.", specs: "Lens Type: Polarized, Frame: Rubberized" },
+      { id: 49, name: "Sunglasses", category: "Contact Lenses", price: 833, discountedPrice: 250, image: "https://i.ibb.co/mCK0jBWt/IMG-20250731-WA0033.jpg", description: "Budget-friendly daily disposable contact lenses.", specs: "Duration: Daily, Water Content: 55%" },
+      { id: 50, name: "Sunglasses", category: "Sunglasses", price: 1917, discountedPrice: 1150, image: "https://i.ibb.co/mFPM2XH3/IMG-20250731-WA0030.jpg", description: "High-end sunglasses with polarized lenses.", specs: "Lens Type: Polarized, Frame: Metal" },
+      { id: 51, name: "Sunglasses", category: "Prescription Glasses", price: 1250, discountedPrice: 750, image: "https://i.ibb.co/zhPhk76d/IMG-20250731-WA0026.jpg", description: "Sleek prescription glasses with blue-light blocking.", specs: "Lens Type: Blue-light blocking, Frame: Metal" },
+      { id: 52, name: "Sunglasses", category: "Prescription Glasses", price: 1200, discountedPrice: 600, image: "https://i.ibb.co/gF9p002H/IMG-20250731-WA0024.jpg", description: "Classic round frames with anti-glare lenses.", specs: "Lens Type: Anti-glare, Frame: Acetate" },
+      { id: 53, name: "Sunglasses", category: "Sunglasses", price: 1500, discountedPrice: 750, image: "https://i.ibb.co/tkTCWHr/IMG-20250731-WA0022.jpg", description: "Trendy sunglasses with UV protection.", specs: "Lens Type: UV-protected, Frame: Plastic" },
+      { id: 54, name: "Sunglasses", category: "Contact Lenses", price: 875, discountedPrice: 350, image: "https://i.ibb.co/VX57D98/IMG-20250731-WA0017.jpg", description: "Comfortable daily disposable contact lenses.", specs: "Duration: Daily, Water Content: 58%" },
+      { id: 55, name: "Sunglasses", category: "Prescription Glasses", price: 625, discountedPrice: 250, image: "https://i.ibb.co/0pLThr1B/IMG-20250731-WA0109.jpg", description: "Affordable prescription glasses with standard lenses.", specs: "Lens Type: Standard, Frame: Plastic" },
+      { id: 56, name: "Sunglasses", category: "Sunglasses", price: 567, discountedPrice: 170, image: "https://i.ibb.co/qYMp5v5b/IMG-20250731-WA0106.jpg", description: "Lightweight casual sunglasses with UV protection.", specs: "Lens Type: UV-protected, Frame: Plastic" },
+      { id: 57, name: "Sunglasses", category: "Contact Lenses", price: 423, discountedPrice: 170, image: "https://i.ibb.co/kgXk6yRR/IMG-20250731-WA0102.jpg", description: "Cost-effective monthly disposable lenses.", specs: "Duration: Monthly, Water Content: 55%" },
+      { id: 58, name: "Glasses", category: "Prescription Glasses", price: 500, discountedPrice: 200, image: "https://i.ibb.co/dsZJZv78/IMG-20250731-WA0100.jpg", description: "Modern prescription glasses with standard lenses.", specs: "Lens Type: Standard, Frame: Metal" },
+      { id: 59, name: "Sunglasses", category: "Contact Lenses", price: 625, discountedPrice: 250, image: "https://i.ibb.co/cPJF61Z/IMG-20250731-WA0096.jpg", description: "Daily disposable lenses for everyday use.", specs: "Duration: Daily, Water Content: 50%" },
+      { id: 60, name: "Sunglasses", category: "Prescription Glasses", price: 500, discountedPrice: 200, image: "https://i.ibb.co/8LqLyrBv/IMG-20250731-WA0095.jpg", description: "Durable prescription glasses for active use.", specs: "Lens Type: Standard, Frame: Rubberized" },
+      { id: 61, name: "Sunglasses", category: "Sunglasses", price: 1125, discountedPrice: 450, image: "https://i.ibb.co/5hBvhvmy/IMG-20250731-WA0092.jpg", description: "Premium polarized sunglasses for style and protection.", specs: "Lens Type: Polarized, Frame: Metal" },
+      { id: 62, name: "Sunglasses", category: "Prescription Glasses", price: 1000, discountedPrice: 400, image: "https://i.ibb.co/SwhyWMcp/IMG-20250731-WA0088.jpg", description: "Elegant glasses with anti-glare coating.", specs: "Lens Type: Anti-glare, Frame: Acetate" },
+      { id: 63, name: "Sunglasses", category: "Sunglasses", price: 1300, discountedPrice: 650, image: "https://i.ibb.co/4ncgc9Y2/IMG-20250731-WA0085.jpg", description: "High-end sunglasses with UV protection.", specs: "Lens Type: UV-protected, Frame: Metal" },
+      { id: 64, name: "Sunglasses", category: "Contact Lenses", price: 1833, discountedPrice: 1100, image: "https://i.ibb.co/3Y5gXDg0/IMG-20250731-WA0083.jpg", description: "Advanced monthly lenses for superior comfort.", specs: "Duration: Monthly, Water Content: 58%" },
+      { id: 65, name: "Sunglasses", category: "Sunglasses", price: 667, discountedPrice: 200, image: "https://i.ibb.co/5XcvbPKX/IMG-20250731-WA0079.jpg", description: "Affordable sunglasses with standard UV protection.", specs: "Lens Type: UV-protected, Frame: Plastic" },
+      { id: 66, name: "Sunglasses", category: "Prescription Glasses", price: 625, discountedPrice: 250, image: "https://i.ibb.co/gZ21wJ26/IMG-20250731-WA0075.jpg", description: "Sleek glasses with standard lenses.", specs: "Lens Type: Standard, Frame: Metal" },
+      { id: 67, name: "Sunglasses", category: "Contact Lenses", price: 667, discountedPrice: 200, image: "https://i.ibb.co/H1nXJ46/IMG-20250731-WA0074.jpg", description: "Budget-friendly daily lenses for comfort.", specs: "Duration: Daily, Water Content: 50%" },
+      { id: 68, name: "Sunglasses", category: "Sunglasses", price: 1417, discountedPrice: 850, image: "https://i.ibb.co/992yNMcr/IMG-20250731-WA0070.jpg", description: "Trendy polarized sunglasses for fashion enthusiasts.", specs: "Lens Type: Polarized, Frame: Plastic" }
+    ];
+
+    function displayCart() {
+      const cartItemsDiv = document.getElementById('cart-items');
+      cartItemsDiv.innerHTML = '';
+
+      if (cart.length === 0) {
+        cartItemsDiv.innerHTML = '<p>Your cart is empty.</p>';
+        document.getElementById('cart-total').textContent = 'Total: ₹0';
+        return;
+      }
+
+      let total = 0;
+      cart.forEach((item, index) => {
+        if (item.quantity > 0) {
+          const product = products.find(p => p.id === item.id);
+          if (product) {
+            const itemPrice = product.discountedPrice * item.quantity;
+            total += itemPrice;
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'cart-item';
+            itemDiv.innerHTML = `
+              <h3>${product.name}</h3>
+              <div class="price-display">
+                <span class="original-price">₹${product.price.toLocaleString('en-IN')}</span>
+                <span class="discounted-price">₹${product.discountedPrice.toLocaleString('en-IN')}</span>
+                <span class="discount">${product.discountedPrice <= 200 ? '70' : product.discountedPrice <= 500 ? '60' : product.discountedPrice <= 800 ? '50' : '40'}% OFF!</span>
+              </div>
+              <p>Quantity: 
+                <input type="number" class="quantity-input" value="${item.quantity}" min="1" onchange="updateQuantity(${index}, this.value)">
+              </p>
+              <p>Subtotal: ₹${itemPrice.toLocaleString('en-IN')}</p>
+              <div class="action-buttons">
+                <button onclick="addToCartItem(${index})">Add</button>
+                <button class="remove-btn" onclick="removeFromCart(${index})">Remove 1</button>
+                <button class="remove-btn" onclick="removeItem(${index})">Remove All</button>
+              </div>
+            `;
+            cartItemsDiv.appendChild(itemDiv);
+          }
+        }
+      });
+
+      document.getElementById('cart-total').textContent = `Total: ₹${total.toLocaleString('en-IN')}`;
+      localStorage.setItem('cart', JSON.stringify(cart));
+    }
+
+    function updateQuantity(index, newQuantity) {
+      newQuantity = parseInt(newQuantity);
+      if (isNaN(newQuantity) || newQuantity < 1) {
+        cart[index].quantity = 1;
+      } else {
+        cart[index].quantity = newQuantity;
+      }
+      displayCart();
+    }
+
+    function addToCartItem(index) {
+      cart[index].quantity += 1;
+      displayCart();
+    }
+
+    function removeFromCart(index) {
+      if (cart[index].quantity > 1) {
+        cart[index].quantity -= 1;
+      } else {
+        cart.splice(index, 1);
+      }
+      displayCart();
+    }
+
+    function removeItem(index) {
+      cart.splice(index, 1);
+      displayCart();
+    }
+
+    function proceedToPayment() {
+      if (cart.length === 0) {
+        alert('Your cart is empty. Add items before proceeding.');
+        return;
+      }
+      alert('Payment integration is in progress. Please use test mode for now.');
+    }
+
+    function resetCart() {
+      cart = [];
+      localStorage.setItem('cart', JSON.stringify(cart));
+      displayCart();
+      alert('Cart has been reset.');
+    }
+
+    window.onload = () => {
+      displayCart();
+      console.log('Cart page loaded at', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+    };
+  </script>
+</body>
+</html>
